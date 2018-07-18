@@ -111,6 +111,6 @@ if __name__ == "__main__":
     while delta > args.convergence_epsilon:
         new_V, delta = policy_eval(policy, new_V)
         iter += 1
-    print V
-    print new_V
+    print V.astype(np.int32)
+    print new_V.astype(np.int32)
     print "Converged in ", iter, " iterations."
