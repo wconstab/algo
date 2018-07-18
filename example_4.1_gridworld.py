@@ -151,8 +151,8 @@ if __name__ == "__main__":
     iter = 0
     while delta > args.convergence_epsilon:
         new_V, delta = policy_eval(policy, new_V, LAMBDA=args.lambda_value)
-        policy = policy_improve(policy, new_V)
         iter += 1
+    policy = policy_improve(policy, new_V)
     print V.astype(np.int32)
     print new_V.astype(np.int32)
     pretty_print_policy(policy)
