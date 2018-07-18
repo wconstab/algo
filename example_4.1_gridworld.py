@@ -57,25 +57,26 @@ def policy_eval(policy, values, LAMBDA):
     return new_values, delta
 
 
-def policy_improve(policy, values):
+def policy_improve(policy, values, epsilon=1e-8):
     new_policy = dict(policy)
     for row in range(S.shape[0]):
         for col in range(S.shape[1]):
             state_idx = (row, col)
             state = S[state_idx]
             best_actions = list()
+            best_value = -99999999
             for a in A:
                 new_state_idx, reward = move(state_idx, a)
                 new_state_value = values[new_state_idx]
 
-                best_value = -99999999
                 if reward == -1:
                     # hack, only way to determine valid move?
-                    if new_state_value > best_value:
-                        best_actions = list()
+                    best_delta = new_state_value - best_value
+                    if best_delta > epsilon:
+                        best_actions = list([a])
+                        best_value = new_state_value
 
-                    best_value = max(best_value, new_state_value)
-                    if best_value == new_state_value:
+                    elif abs(best_delta) < epsilon:
                         best_actions.append(a)
 
             new_policy[state] = best_actions
@@ -148,8 +149,8 @@ if __name__ == "__main__":
     iter = 0
     while delta > args.convergence_epsilon:
         new_V, delta = policy_eval(policy, new_V, LAMBDA=args.lambda_value)
+        policy = policy_improve(policy, new_V)
         iter += 1
-    policy = policy_improve(policy, new_V)
     print V.astype(np.int32)
     print new_V.astype(np.int32)
     pretty_print_policy(policy)
