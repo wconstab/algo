@@ -105,10 +105,7 @@ def move(state, action):
     rinc, cinc = A[action]
     new_state = (row + rinc, col + cinc)
     reward = -1
-    if validate(*new_state):
-        if is_terminal(*new_state):
-            reward = 0
-    else:
+    if not validate(*new_state):
         new_state = state
         reward = 0
 
