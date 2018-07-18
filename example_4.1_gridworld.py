@@ -18,7 +18,7 @@ A = {'up': (-1, 0),
 # Start with a random policy and randomly initialize the value function
 P = {s : A.keys() for s in range(16)}
 
-TERMINAL = -1
+TERMINAL = 0
 S = [[TERMINAL, 1, 2, 3],
      [4, 5, 6, 7],
      [8, 9, 10, 11],
@@ -55,6 +55,32 @@ def policy_eval(policy, values, LAMBDA):
             new_values[state_idx] = new_v_accum
 
     return new_values, delta
+
+
+def policy_improve(policy, values):
+    new_policy = dict(policy)
+    for row in range(S.shape[0]):
+        for col in range(S.shape[1]):
+            state_idx = (row, col)
+            state = S[state_idx]
+            best_actions = list()
+            for a in A:
+                new_state_idx, reward = move(state_idx, a)
+                new_state_value = values[new_state_idx]
+
+                best_value = -99999999
+                if reward == -1:
+                    # hack, only way to determine valid move?
+                    if new_state_value > best_value:
+                        best_actions = list()
+
+                    best_value = max(best_value, new_state_value)
+                    if best_value == new_state_value:
+                        best_actions.append(a)
+
+            new_policy[state] = best_actions
+
+    return new_policy
 
 
 def validate(row, col):
@@ -97,6 +123,20 @@ def move_test():
             print state, action, new_state, reward
             state = new_state
 
+
+def pretty_print_policy(policy):
+    for row in range(V.shape[0]):
+        line = ""
+        for col in range(V.shape[1]):
+            policy_actions = policy[S[(row, col)]]
+            encode = {'up': '^',
+                      'down': 'v',
+                      'left': '<',
+                      'right': '>'}
+            arrows = [encode[a] for a in policy_actions]
+            line += "%4s\t" % "".join(arrows)
+        print line
+
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--convergence_epsilon', '-e', default=1e-5, type=float)
@@ -111,7 +151,9 @@ if __name__ == "__main__":
     iter = 0
     while delta > args.convergence_epsilon:
         new_V, delta = policy_eval(policy, new_V, LAMBDA=args.lambda_value)
+        policy = policy_improve(policy, new_V)
         iter += 1
     print V.astype(np.int32)
     print new_V.astype(np.int32)
+    pretty_print_policy(policy)
     print "Converged in ", iter, " iterations."
