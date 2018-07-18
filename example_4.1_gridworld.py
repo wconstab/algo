@@ -29,7 +29,7 @@ S = np.array(S, dtype=np.int32)
 V = np.random.random((len(S), len(S)))
 
 
-def policy_eval(policy, values, LAMBDA=0.9):
+def policy_eval(policy, values, LAMBDA):
     # compute the new value for a state given a policy
     new_values = np.array(values)
     delta = 0
@@ -100,6 +100,7 @@ def move_test():
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--convergence_epsilon', '-e', default=1e-5, type=float)
+parser.add_argument('--lambda_value', default=0.9, type=float)
 args = parser.parse_args()
 
 
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     delta = 100
     iter = 0
     while delta > args.convergence_epsilon:
-        new_V, delta = policy_eval(policy, new_V)
+        new_V, delta = policy_eval(policy, new_V, LAMBDA=args.lambda_value)
         iter += 1
     print V.astype(np.int32)
     print new_V.astype(np.int32)
