@@ -3,7 +3,7 @@ import numpy as np
 def initial_value():
     v = np.random.random(101)
     v[0] = 0
-    v[100] = 0
+    v[100] = 1
     return v
 
 
@@ -27,9 +27,8 @@ def evaluate_policy(policy, values, states, P_WIN):
     new_values = values.copy()
     for s in states[1:-1]:
         a = policy[s]
-        reward = 1 if s + a == 100 else 0
-        new_values[s] = P_WIN * (reward + values[s + a]) + \
-                        (1 - P_WIN) * (0 + values[s - a])
+        new_values[s] = P_WIN * (values[s + a]) + \
+                        (1 - P_WIN) * values[s - a]
     return new_values
 
 
