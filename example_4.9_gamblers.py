@@ -3,7 +3,7 @@ import numpy as np
 def initial_value():
     v = np.random.random(101)
     v[0] = 0
-    v[100] = 1
+    v[100] = 0
     return v
 
 
@@ -38,9 +38,8 @@ def improve_policy(policy, values, states, P_WIN):
     for s in states[1:-1]:
         best_action_value = 0
         for a in possible_actions(s):
-            action_value = 0
-            for p, new_s in zip([P_WIN, 1 - P_WIN], [s + a, s - a]):
-                action_value += p * values[new_s]
+            action_value = P_WIN * values[s + a] + \
+                           (1 - P_WIN) * values[s - a]
             if action_value > best_action_value:
                 best_action_value = action_value
                 new_policy[s] = a
