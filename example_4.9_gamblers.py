@@ -7,8 +7,13 @@ def initial_value():
     return v
 
 
-def initial_policy(states):
+def initial_policy_random(states):
     p = [0] + [np.random.randint(1, max_stakes(s) + 1) for s in states[1:-1]] + [0]
+    return np.array(p)
+
+
+def initial_policy_zeros(states):
+    p = [0 for s in states]
     return np.array(p)
 
 
@@ -48,7 +53,8 @@ def improve_policy(policy, values, states, P_WIN):
 def train(P_WIN=0.4):
     S_plus = states()
     V = initial_value() 
-    P = initial_policy(S_plus)
+    P = initial_policy_zeros(S_plus)
+    #P = initial_policy_random(S_plus)
 
     for i in range(1000):
         V = evaluate_policy(P, V, S_plus, P_WIN)
