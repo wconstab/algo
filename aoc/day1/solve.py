@@ -1,9 +1,4 @@
-def load_input(filename):
-    input = []
-    with open(filename) as f:
-        for line in f:
-            input.append(int(line))
-    return input
+from aoc.util.load_input import load_input, build_filename
 
 
 def solve_part_1(input):
@@ -40,7 +35,7 @@ def test_part_2():
 
 
 if __name__ == "__main__":
-    filename="input"
+    filename = build_filename(__file__, "input")
     input = load_input(filename)
     answer = solve_part_1(input)
     print("Part 1: The frequency is {}".format(answer))
