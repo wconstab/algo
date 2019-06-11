@@ -1,11 +1,11 @@
 import os 
 
 
-def load_input(filename):
+def load_input(filename, typ=int):
     input = []
     with open(filename) as f:
         for line in f:
-            input.append(int(line))
+            input.append(typ(line))
     return input
 
 
