@@ -1,5 +1,5 @@
 import re
-
+import time
 
 """
 Each claim's rectangle is defined as follows:
@@ -33,7 +33,31 @@ class Claim(object):
         self.top_offset = int(top_offset)
         self.width = int(width)
         self.height = int(height)
-         
+
+
+    def overlaps(self, other):
+        def segment_overlap(a_start, a_end, b_start, b_end):
+            return (a_start <= b_start and a_end >= b_start) or (b_start <= a_start and b_end >= a_start)
+        row_overlap = segment_overlap(self.row_start, self.row_end, other.row_start, other.row_end)
+        col_overlap = segment_overlap(self.col_start, self.col_end, other.col_start, other.col_end)
+        # print(self, other, "overlap? row {} col {}".format(row_overlap, col_overlap))
+        return row_overlap and col_overlap
+
+    @property
+    def row_start(self):
+        return self.top_offset
+
+    @property
+    def col_start(self):
+        return self.left_offset
+
+    @property
+    def row_end(self):
+        return self.top_offset + self.height - 1
+
+    @property
+    def col_end(self):
+        return self.left_offset + self.width - 1
 
     @property
     def col_offset(self):
@@ -94,6 +118,37 @@ def solve_part_1(claims):
     return len(covered_points)
 
 
+def solve_part_2(claims):
+    t0 = time.time()
+    remaining = set(claims)
+    no_overlap = set()
+    overlapping = set()
+    processed = 0
+    total = len(remaining)
+    while len(remaining):
+        claim = remaining.pop()
+        for other in remaining:
+            if claim.overlaps(other):
+                overlapping.add(claim)
+                overlapping.add(other)
+        
+        remaining -= overlapping
+        processed += len(overlapping) + 1
+        if processed % 100 == 0:
+            print("Processed {}, elapsed {} sec".format(processed, time.time()-t0))
+        
+        if claim not in overlapping:
+            no_overlap.add(claim)
+        
+        overlapping.clear()
+
+    answer = list(no_overlap)
+    t1 = time.time()
+    elapsed = t1 - t0
+    print("day3 part 2 found {} time {} sec".format(len(answer), elapsed))
+    return answer
+
+
 def load_input(filename="input"):
     with open(filename) as f:
         return f.readlines()
@@ -110,9 +165,15 @@ if __name__ == "__main__":
     test_parse_input(input_lines)
     input = list(map(parse_input_line, input_lines))
 
-    test_answer = solve_part_1(list(map(parse_input_line, test_input)))
-    assert test_answer == test_expected_answer, "Expected {} got {}".format(test_expected_answer, test_answer)
+    #test_answer = solve_part_1(list(map(parse_input_line, test_input)))
+    #assert test_answer == test_expected_answer, "Expected {} got {}".format(test_expected_answer, test_answer)
 
-    answer = solve_part_1(input)
-    right_answer = 119572
-    print(answer)
+    #answer = solve_part_1(input)
+    #right_answer = 119572
+    #print(answer)
+
+    test_answer = solve_part_2(map(Claim, test_input))
+    assert len(test_answer) == 1 and test_answer[0].idx == 3, "Expected claim 3 as answer from test data"
+    answer = solve_part_2(input)
+    assert len(answer) == 1, "expected single answer, got {}".format(len(answer))
+
