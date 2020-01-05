@@ -1,0 +1,164 @@
+import numpy as np
+import struct
+from PIL import Image
+
+train_labels_filename = 'train-labels-idx1-ubyte'
+test_labels_filename = 't10k-labels-idx1-ubyte'
+train_images_filename = 'train-images-idx3-ubyte'
+test_images_filename = 't10k-images-idx3-ubyte'
+def read_labels_file(filename):
+	with open(filename, 'rb') as labels_file:
+		magic = struct.unpack('>i', labels_file.read(4))[0]
+		assert 0x00000801 == magic, "magic number check failed, got {:08X}".format(magic)
+		num_items = struct.unpack('>i', labels_file.read(4))[0]
+		labels = np.fromfile(labels_file, dtype='B', count=num_items)
+
+	return labels
+
+
+def read_images_file(filename):
+	with open(filename, 'rb') as images_file:
+		magic = struct.unpack('>i', images_file.read(4))[0]
+		assert 0x00000803 == magic, "magic number check failed, got {:08X}".format(magic)
+		num_items = struct.unpack('>i', images_file.read(4))[0]
+		rows = struct.unpack('>i', images_file.read(4))[0]
+		cols = struct.unpack('>i', images_file.read(4))[0]
+		images = np.fromfile(images_file, dtype='B', count=num_items*rows*cols).reshape(num_items, rows*cols)
+
+	return images
+
+def load_mnist():
+	train_labels = read_labels_file(train_labels_filename)
+	test_labels = read_labels_file(test_labels_filename)
+	train_images = read_images_file(train_images_filename)
+	test_images = read_images_file(test_images_filename)
+
+	return (train_labels, train_images, test_labels, test_images)
+
+
+def show_image(data):
+	image = Image.fromarray(data, 'L')
+	image.show()
+
+
+def softmax(x):
+	"""
+	Expect a vector of logits, return a vector of same size normalized to a probability distribution.
+	Assumes NxHW packing, sums axis 1
+	"""
+	expx = np.exp(x - np.max(x, axis=1, keepdims=True))
+	y = expx / np.sum(expx, axis=1, keepdims=True)
+	return y
+
+def cross_entropy(y, y_hat, epsilon=0.000001):
+	"""
+	sum[ y_hat * log(y) ]
+	returns large negative number when y is very small and y_hat is 1.
+	TODO: negative sign?
+	"""
+	y = np.amax(y, axis=(), initial=epsilon)
+	return np.sum(y_hat * np.log(y), axis=1)
+
+
+def cross_entropy_softmax_backward(y, y_hat):
+	"""
+	Given vector of error per training example (size bsz)
+	Compute partial derivative for each input logit
+	input 'error' shape N
+	return shape N, Logits
+	"""
+	return y - y_hat
+	
+
+
+class Model(object):
+	def __init__(self, hidden_size=100, logits=10, lr=0.00001, bsz=128):
+		input_size = 28*28
+		self.lr = lr
+		self.bsz = bsz
+		self.W1 = np.empty((hidden_size, input_size), dtype=float)
+		# self.b1 = np.empty((hidden_size), dtype=float)
+		self.W2 = np.empty((logits, hidden_size), dtype=float)
+		# self.b2 = np.empty((logits), dtype=float)
+
+
+	def init(self, mean=0, var=0.01):
+		"""
+		TODO what is the best initalization to use?
+		"""
+		self.W1[:] = np.random.normal(loc=mean, scale=var, size=self.W1.shape)
+		# self.b1[:] = np.random.normal(loc=mean, scale=var, size=self.b1.shape)
+		self.W2[:] = np.random.normal(loc=mean, scale=var, size=self.W2.shape)
+		# self.b2[:] = np.random.normal(loc=mean, scale=var, size=self.b2.shape)
+
+
+	def forward(self, x):
+		"""
+
+		"""
+		self.x = x
+		self.actW1 = np.tensordot(self.W1 , x, axes=([1],[1])).transpose(1,0)
+		# y = y + self.b1
+		self.actRelu1 = np.amax(self.actW1, axis=(), initial=0)
+
+		self.actW2 = np.tensordot(self.W2, self.actRelu1, axes=([1],[1])).transpose(1,0)
+		# y = y + self.b2
+		y = softmax(self.actW2)
+
+		return y
+
+
+	def backward(self, error, y, y_hat):
+		assert error.shape == (128,), "expected one error term per sample"
+
+		grad = cross_entropy_softmax_backward(y, y_hat)
+		# grad shape (N, logits)
+		# actRelu1 shape (N, hidden_size)
+		# dW2 shape (N, hidden_size, logits)
+		self.dW2 = np.einsum("nj,nk->jk", grad, self.actRelu1)
+		
+		dRelu1 = np.einsum("lh,nl->nh", self.W2, grad)
+		dActW1 = np.greater(self.actRelu1, 0) * dRelu1
+		self.dW1 = np.einsum("nj,nk->jk", dActW1, self.x)
+
+
+	def update(self, error):
+		"""
+		Run SGD, apply update
+		"""
+		error = -np.sum(error)
+		self.W2 -= self.lr * error * self.dW2 / self.bsz
+		self.W1 -= self.lr * error * self.dW1 / self.bsz
+
+def train_loader(train_data, train_labels, bsz):
+	"""
+	TODO neglects randomness per epoch
+		and drops last partial batch
+	"""
+	for i in range(len(train_data)//bsz):
+		start = bsz * i
+		stop = start + bsz
+		yield (train_data[start:stop, :], train_labels[start:stop])
+
+
+def train_loop(epochs=10):
+	(train_labels, train_images, test_labels, test_images) = load_mnist()
+
+	model = Model()
+	model.init()
+
+	for epoch in range(epochs):
+		minibatch = 0
+		for data, labels in train_loader(train_images, train_labels, bsz=model.bsz):
+			y_hat = np.eye(10)[labels]
+
+			y = model.forward(data)
+			error = cross_entropy(y, y_hat)
+			print("Batch {}, sum** error {}".format(minibatch, np.sum(np.square(error))))
+			model.backward(error, y, y_hat)
+			model.update(error)
+			minibatch += 1
+
+
+if __name__ == "__main__":
+	train_loop()
