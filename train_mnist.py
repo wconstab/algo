@@ -56,9 +56,14 @@ def cross_entropy(y, y_hat, epsilon=0.000001):
 	returns large negative number when y is very small and y_hat is 1.
 	TODO: negative sign?
 	"""
-	y = np.amax(y, axis=(), initial=epsilon)
-	return np.sum(y_hat * np.log(y), axis=1)
+	# y = np.amax(y, axis=(), initial=epsilon)
+	# return np.sum(y_hat * np.log(y), axis=1)
+	bsz = y_hat.shape[0]
+	y_hat_argmax = y_hat.argmax(axis=1)
+	log_probs = -np.log(y[range(bsz), y_hat_argmax])
+	loss = np.sum(log_probs) / bsz
 
+	return loss
 
 def cross_entropy_softmax_backward(y, y_hat):
 	"""
@@ -67,10 +72,22 @@ def cross_entropy_softmax_backward(y, y_hat):
 	input 'error' shape N
 	return shape N, Logits
 	"""
-	return y - y_hat
-	
+	# return y - y_hat
+	bsz = y_hat.shape[0]
+	grad = y
+	grad[range(bsz), y_hat.argmax(axis=1)] -= 1
+	grad = grad / bsz
+	return grad
 
-
+"""
+TODOs and Debug steps
+- *error in weight update?
+- sum errors across batch at the top or sum dWs before update? (is this the same?)
+- gradient check (numerical finite difference)
+- check magnitue of weights, updates (ratio ~1e-3)
+- check chance loss at the beginning
+- data prep- mean subtract, scale?
+"""
 class Model(object):
 	def __init__(self, hidden_size=100, logits=10, lr=0.00001, bsz=128):
 		input_size = 28*28
@@ -107,9 +124,19 @@ class Model(object):
 
 		return y
 
+	def gradcheck(self, y_hat):
+		# check softmax, CE grad first
+		x = self.actW2
+		y = cross_entropy(softmax(x), y_hat)
+		dx = cross_entropy_softmax_backward(y, y_hat)
 
-	def backward(self, error, y, y_hat):
-		assert error.shape == (128,), "expected one error term per sample"
+		step = 1e-5
+		for point in [(0,0), (5,12)]:
+			import ipdb; ipdb.set_trace()
+
+
+
+	def backward(self, y, y_hat):
 
 		grad = cross_entropy_softmax_backward(y, y_hat)
 		# grad shape (N, logits)
@@ -126,9 +153,8 @@ class Model(object):
 		"""
 		Run SGD, apply update
 		"""
-		error = -np.sum(error)
-		self.W2 -= self.lr * error * self.dW2 / self.bsz
-		self.W1 -= self.lr * error * self.dW1 / self.bsz
+		self.W2 -= self.lr * error * self.dW2
+		self.W1 -= self.lr * error * self.dW1
 
 def train_loader(train_data, train_labels, bsz):
 	"""
@@ -153,10 +179,13 @@ def train_loop(epochs=10):
 			y_hat = np.eye(10)[labels]
 
 			y = model.forward(data)
-			error = cross_entropy(y, y_hat)
-			print("Batch {}, sum** error {}".format(minibatch, np.sum(np.square(error))))
-			model.backward(error, y, y_hat)
-			model.update(error)
+
+			# model.gradcheck(y_hat)
+
+			loss = cross_entropy(y, y_hat)
+			print("Batch {}, sum** error {}".format(minibatch, loss))
+			model.backward(y, y_hat)
+			model.update(loss)
 			minibatch += 1
 
 
