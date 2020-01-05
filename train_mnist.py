@@ -91,6 +91,7 @@ TODOs and Debug steps
 - check magnitue of weights, updates (ratio ~1e-3)
 - check chance loss at the beginning
 - data prep- mean subtract, scale?
+- summing over batch dim of grads at random places during backward() - something is probably wrong there
 
 Tried disabling update to inspect for chance loss.  got 3.2 != 2.3==-log(0.1).  Tried xavier initialization, made it worse (loss now 1000+).  
 Scaled images /= 255.0, fixed chance loss.
@@ -103,33 +104,29 @@ class Model(object):
 		self.lr = lr
 		self.bsz = bsz
 		self.W1 = np.empty((hidden_size, input_size), dtype=float)
-		# self.b1 = np.empty((hidden_size), dtype=float)
+		self.b1 = np.zeros((hidden_size), dtype=float)
 		self.W2 = np.empty((logits, hidden_size), dtype=float)
-		# self.b2 = np.empty((logits), dtype=float)
+		self.b2 = np.zeros((logits), dtype=float)
 
 
 	def init(self, mean=0):
 		"""
-		TODO what is the best initalization to use?
+		Using Glorot initialization
 		"""
 		self.W1[:] = np.random.normal(loc=mean, scale=np.sqrt(2/np.sum(self.W1.shape)), size=self.W1.shape)
-		# self.b1[:] = np.random.normal(loc=mean, scale=var, size=self.b1.shape)
 		self.W2[:] = np.random.normal(loc=mean, scale=np.sqrt(2/np.sum(self.W2.shape)), size=self.W2.shape)
-		# self.b2[:] = np.random.normal(loc=mean, scale=var, size=self.b2.shape)
-
 
 	def forward(self, x):
 		"""
-
 		"""
 		self.x = x
 		self.actW1 = np.tensordot(self.W1 , x, axes=([1],[1])).transpose(1,0)
-		# y = y + self.b1
-		self.actRelu1 = np.amax(self.actW1, axis=(), initial=0)
+		self.actb1 = self.actW1 + self.b1
+		self.actRelu1 = np.amax(self.actb1, axis=(), initial=0)
 
 		self.actW2 = np.tensordot(self.W2, self.actRelu1, axes=([1],[1])).transpose(1,0)
-		# y = y + self.b2
-		y = softmax(self.actW2)
+		self.actb2 = self.actW2 + self.b2
+		y = softmax(self.actb2)
 
 		return y
 
@@ -152,10 +149,12 @@ class Model(object):
 		# actRelu1 shape (N, hidden_size)
 		# dW2 shape (N, hidden_size, logits)
 		self.dW2 = np.einsum("nj,nk->jk", grad, self.actRelu1)
+		self.db2 = np.sum(grad, axis=0)
 		
 		dRelu1 = np.einsum("lh,nl->nh", self.W2, grad)
 		dActW1 = np.greater(self.actRelu1, 0) * dRelu1
 		self.dW1 = np.einsum("nj,nk->jk", dActW1, self.x)
+		self.db1 = np.sum(dActW1, axis=0)
 
 
 	def update(self, error):
@@ -163,7 +162,10 @@ class Model(object):
 		Run SGD, apply update
 		"""
 		self.W2 -= self.lr * error * self.dW2
+		# self.b2 -= self.lr * error * self.db2
 		self.W1 -= self.lr * error * self.dW1
+		# self.b1 -= self.lr * error * self.db1
+
 
 def train_loader(train_data, train_labels, bsz):
 	"""
@@ -175,6 +177,10 @@ def train_loader(train_data, train_labels, bsz):
 		stop = start + bsz
 		yield (train_data[start:stop, :], train_labels[start:stop])
 
+def evaluate(model, test_data, test_labels):
+	predictions = model.forward(test_data)
+	correct = np.argmax(predictions, axis=1) == test_labels
+	return np.sum(correct) / test_labels.shape[0]
 
 def train_loop(epochs=10):
 	(train_labels, train_images, test_labels, test_images) = load_mnist()
@@ -186,6 +192,10 @@ def train_loop(epochs=10):
 	# epochs = 10000
 	# train_images = train_images[:128]
 	# train_labels = train_labels[:128]
+
+	accuracy = evaluate(model, test_images, test_labels)
+	print("random init test accuracy {}".format(accuracy))
+
 	for epoch in range(epochs):
 		minibatch = 0
 		for data, labels in train_loader(train_images, train_labels, bsz=model.bsz):
@@ -196,10 +206,14 @@ def train_loop(epochs=10):
 			# model.gradcheck(y_hat)
 
 			loss = cross_entropy(y, y_hat)
-			print("Batch {}, sum** error {}".format(minibatch, loss))
+			# print("Batch {}, sum** error {}".format(minibatch, loss))
 			model.backward(y, y_hat)
 			model.update(loss)
 			minibatch += 1
+
+		accuracy = evaluate(model, test_images, test_labels)
+		print("Epoch {}, test accuracy {}".format(epoch, accuracy))
+	import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
