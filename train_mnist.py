@@ -33,6 +33,10 @@ def load_mnist():
 	train_images = read_images_file(train_images_filename)
 	test_images = read_images_file(test_images_filename)
 
+	max_pixel_value = 255.0
+	train_images = train_images / max_pixel_value
+	test_images = test_images / max_pixel_value
+
 	return (train_labels, train_images, test_labels, test_images)
 
 
@@ -87,6 +91,11 @@ TODOs and Debug steps
 - check magnitue of weights, updates (ratio ~1e-3)
 - check chance loss at the beginning
 - data prep- mean subtract, scale?
+
+Tried disabling update to inspect for chance loss.  got 3.2 != 2.3==-log(0.1).  Tried xavier initialization, made it worse (loss now 1000+).  
+Scaled images /= 255.0, fixed chance loss.
+Noticed with Xavier init the loss bounces around 2.26-2.35ish, with fixed 0.01 scale init, loss steadier around 2.30; sticking with xavier
+
 """
 class Model(object):
 	def __init__(self, hidden_size=100, logits=10, lr=0.00001, bsz=128):
@@ -99,13 +108,13 @@ class Model(object):
 		# self.b2 = np.empty((logits), dtype=float)
 
 
-	def init(self, mean=0, var=0.01):
+	def init(self, mean=0):
 		"""
 		TODO what is the best initalization to use?
 		"""
-		self.W1[:] = np.random.normal(loc=mean, scale=var, size=self.W1.shape)
+		self.W1[:] = np.random.normal(loc=mean, scale=np.sqrt(2/np.sum(self.W1.shape)), size=self.W1.shape)
 		# self.b1[:] = np.random.normal(loc=mean, scale=var, size=self.b1.shape)
-		self.W2[:] = np.random.normal(loc=mean, scale=var, size=self.W2.shape)
+		self.W2[:] = np.random.normal(loc=mean, scale=np.sqrt(2/np.sum(self.W2.shape)), size=self.W2.shape)
 		# self.b2[:] = np.random.normal(loc=mean, scale=var, size=self.b2.shape)
 
 
