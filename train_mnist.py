@@ -98,7 +98,7 @@ Noticed with Xavier init the loss bounces around 2.26-2.35ish, with fixed 0.01 s
 
 """
 class Model(object):
-	def __init__(self, hidden_size=100, logits=10, lr=0.00001, bsz=128):
+	def __init__(self, hidden_size=100, logits=10, lr=0.001, bsz=128):
 		input_size = 28*28
 		self.lr = lr
 		self.bsz = bsz
