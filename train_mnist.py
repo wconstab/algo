@@ -27,6 +27,7 @@ def read_images_file(filename):
 
 	return images
 
+
 def load_mnist():
 	train_labels = read_labels_file(train_labels_filename)
 	test_labels = read_labels_file(test_labels_filename)
@@ -54,6 +55,7 @@ def softmax(x):
 	y = expx / np.sum(expx, axis=1, keepdims=True)
 	return y
 
+
 def cross_entropy(y, y_hat, epsilon=0.000001):
 	"""
 	sum[ y_hat * log(y) ]
@@ -69,6 +71,7 @@ def cross_entropy(y, y_hat, epsilon=0.000001):
 
 	return loss
 
+
 def cross_entropy_softmax_backward(y, y_hat):
 	"""
 	Given vector of error per training example (size bsz)
@@ -82,6 +85,28 @@ def cross_entropy_softmax_backward(y, y_hat):
 	grad[range(bsz), y_hat.argmax(axis=1)] -= 1
 	grad = grad / bsz
 	return grad
+
+
+def numerical_grad_check(x, dx_analytical, f_x, fail_tolerance=1e-3, warn_tolerance=1e-4, step=1e-5):
+	"""
+	http://cs231n.github.io/neural-networks-3/#gradcheck
+	pass in f_x, a lambda that just takes x.
+	"""
+	x_plus = np.array(x, dtype=np.float64)
+	x_minus = np.array(x, dtype=np.float64)
+	for point in [(0, 0), (5, 2), (13, 3), (25, 5), (127, 9)]:
+		x_plus[point] += step
+		x_minus[point] -= step
+		df_x_plus = f_x(x_plus)
+		df_x_minus = f_x(x_minus)
+		dx_numerical = (df_x_plus - df_x_minus) / (2 * step)
+		relative_diff = (dx_numerical - dx_analytical[point]) / max(abs(dx_numerical), abs(dx_analytical[point]))
+		assert relative_diff < fail_tolerance, "Failed gradient check at point {}, dx_numerical {}, dx {}, relative_diff {}".format(point, dx_numerical, dx_analytical[point], relative_diff)
+		if relative_diff > warn_tolerance:
+			print("Warning: point {}, dx_numerical {}, dx {}, relative_diff {}".format(point, dx_numerical, dx_analytical[point], relative_diff))
+		x_plus[point] = x[point]
+		x_minus[point] = x[point]
+
 
 """
 TODOs and Debug steps
@@ -116,6 +141,7 @@ class Model(object):
 		self.W1[:] = np.random.normal(loc=mean, scale=np.sqrt(2/np.sum(self.W1.shape)), size=self.W1.shape)
 		self.W2[:] = np.random.normal(loc=mean, scale=np.sqrt(2/np.sum(self.W2.shape)), size=self.W2.shape)
 
+
 	def forward(self, x):
 		"""
 		"""
@@ -130,17 +156,33 @@ class Model(object):
 
 		return y
 
-	def gradcheck(self, y_hat):
+
+
+
+
+	def gradcheck_softmax_ce(self, y_hat, fail_tolerance=1e-3, warn_tolerance=1e-4):
 		# check softmax, CE grad first
-		x = self.actW2
-		y = cross_entropy(softmax(x), y_hat)
+		x = self.actW2.astype(np.float64)
+		y = softmax(x)
+		# loss = cross_entropy(y, y_hat)
 		dx = cross_entropy_softmax_backward(y, y_hat)
 
-		step = 1e-5
-		for point in [(0,0), (5,12)]:
-			import ipdb; ipdb.set_trace()
+		f_x = lambda _x : cross_entropy(softmax(_x), y_hat)
 
-
+		numerical_grad_check(x, dx, f_x)
+		# step = 1e-5
+		# for point in [(0, 0), (5, 2), (13, 3), (25, 5), (127, 9)]:
+		# 	x_plus = np.array(x)
+		# 	x_minus = np.array(x)
+		# 	x_plus[point] += step
+		# 	x_minus[point] -= step
+		# 	df_x_plus = cross_entropy(softmax(x_plus), y_hat)
+		# 	df_x_minus = cross_entropy(softmax(x_minus), y_hat)
+		# 	dx_numerical = (df_x_plus - df_x_minus) / (2 * step)
+		# 	relative_diff = (dx_numerical - dx[point]) / max(abs(dx_numerical), abs(dx[point]))
+		# 	assert relative_diff < fail_tolerance, "Failed gradient check at point {}, dx_numerical {}, dx {}, relative_diff {}".format(point, dx_numerical, dx[point], relative_diff)
+		# 	if relative_diff > warn_tolerance:
+		# 		print("Warning: point {}, dx_numerical {}, dx {}, relative_diff {}".format(point, dx_numerical, dx[point], relative_diff))
 
 	def backward(self, y, y_hat):
 
@@ -177,10 +219,12 @@ def train_loader(train_data, train_labels, bsz):
 		stop = start + bsz
 		yield (train_data[start:stop, :], train_labels[start:stop])
 
+
 def evaluate(model, test_data, test_labels):
 	predictions = model.forward(test_data)
 	correct = np.argmax(predictions, axis=1) == test_labels
 	return np.sum(correct) / test_labels.shape[0]
+
 
 def train_loop(epochs=10):
 	(train_labels, train_images, test_labels, test_images) = load_mnist()
@@ -203,7 +247,7 @@ def train_loop(epochs=10):
 
 			y = model.forward(data)
 
-			# model.gradcheck(y_hat)
+			model.gradcheck_softmax_ce(y_hat)
 
 			loss = cross_entropy(y, y_hat)
 			# print("Batch {}, sum** error {}".format(minibatch, loss))
