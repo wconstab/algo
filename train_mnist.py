@@ -122,6 +122,9 @@ Tried disabling update to inspect for chance loss.  got 3.2 != 2.3==-log(0.1).  
 Scaled images /= 255.0, fixed chance loss.
 Noticed with Xavier init the loss bounces around 2.26-2.35ish, with fixed 0.01 scale init, loss steadier around 2.30; sticking with xavier
 
+Try grad checking all layers
+check abs magnitudes of loss, and gradients, possibly loss scale
+
 """
 class Model(object):
 	def __init__(self, hidden_size=100, logits=10, lr=0.1, bsz=128):
@@ -157,32 +160,15 @@ class Model(object):
 		return y
 
 
-
-
-
-	def gradcheck_softmax_ce(self, y_hat, fail_tolerance=1e-3, warn_tolerance=1e-4):
+	def gradcheck(self, y_hat, fail_tolerance=1e-3, warn_tolerance=1e-4):
 		# check softmax, CE grad first
 		x = self.actW2.astype(np.float64)
 		y = softmax(x)
-		# loss = cross_entropy(y, y_hat)
 		dx = cross_entropy_softmax_backward(y, y_hat)
-
 		f_x = lambda _x : cross_entropy(softmax(_x), y_hat)
 
 		numerical_grad_check(x, dx, f_x)
-		# step = 1e-5
-		# for point in [(0, 0), (5, 2), (13, 3), (25, 5), (127, 9)]:
-		# 	x_plus = np.array(x)
-		# 	x_minus = np.array(x)
-		# 	x_plus[point] += step
-		# 	x_minus[point] -= step
-		# 	df_x_plus = cross_entropy(softmax(x_plus), y_hat)
-		# 	df_x_minus = cross_entropy(softmax(x_minus), y_hat)
-		# 	dx_numerical = (df_x_plus - df_x_minus) / (2 * step)
-		# 	relative_diff = (dx_numerical - dx[point]) / max(abs(dx_numerical), abs(dx[point]))
-		# 	assert relative_diff < fail_tolerance, "Failed gradient check at point {}, dx_numerical {}, dx {}, relative_diff {}".format(point, dx_numerical, dx[point], relative_diff)
-		# 	if relative_diff > warn_tolerance:
-		# 		print("Warning: point {}, dx_numerical {}, dx {}, relative_diff {}".format(point, dx_numerical, dx[point], relative_diff))
+
 
 	def backward(self, y, y_hat):
 
@@ -247,7 +233,7 @@ def train_loop(epochs=10):
 
 			y = model.forward(data)
 
-			model.gradcheck_softmax_ce(y_hat)
+			model.gradcheck(y_hat)
 
 			loss = cross_entropy(y, y_hat)
 			# print("Batch {}, sum** error {}".format(minibatch, loss))
