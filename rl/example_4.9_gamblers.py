@@ -3,7 +3,7 @@ import numpy as np
 def initial_value():
     v = np.random.random(101)
     v[0] = 0
-    v[100] = 1
+    v[100] = 0
     return v
 
 
@@ -26,14 +26,15 @@ def states():
 
 
 def possible_actions(state):
-    return range(1, max_stakes(state))
+    return range(1, max_stakes(state) + 1)
 
 def evaluate_policy(policy, values, states, P_WIN):
     new_values = values.copy()
     for s in states[1:-1]:
         a = policy[s]
-        new_values[s] = P_WIN * (values[s + a]) + \
-                        (1 - P_WIN) * values[s - a]
+        r = 1 if s + a == 100 else 0
+        new_values[s] = P_WIN * (r + values[s + a]) + \
+                        (1 - P_WIN) * (0 + values[s - a])
     return new_values
 
 
@@ -42,7 +43,8 @@ def improve_policy(policy, values, states, P_WIN):
     for s in states[1:-1]:
         best_action_value = 0
         for a in possible_actions(s):
-            action_value = P_WIN * values[s + a] + \
+            r = 1 if s + a == 100 else 0
+            action_value = P_WIN * (r + values[s + a]) + \
                            (1 - P_WIN) * values[s - a]
             if action_value > best_action_value:
                 best_action_value = action_value
@@ -53,8 +55,9 @@ def improve_policy(policy, values, states, P_WIN):
 def train(P_WIN=0.4):
     S_plus = states()
     V = initial_value() 
-    P = initial_policy_zeros(S_plus)
-    #P = initial_policy_random(S_plus)
+    # having a zero policy seems to prevent learning, probably bc reward is never nonzero
+    #P = initial_policy_zeros(S_plus)
+    P = initial_policy_random(S_plus)
 
     for i in range(1000):
         V = evaluate_policy(P, V, S_plus, P_WIN)
