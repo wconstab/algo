@@ -5,3 +5,7 @@ aoc.egg_info
 *.swo
 *.pyc
 
+t10k-images*
+t10k-labels*
+train-images*
+train-labels*
