@@ -43,12 +43,12 @@ class OrnsteinUhlenbeck(object):
 
 
 class ReplayBuffer(object):
-	def __init__(self, max_size, input_shape, n_actions):
+	def __init__(self, max_size, state_dim, n_actions):
 		self.max_size = max_size
-		self.input_shape = input_shape
+		self.state_dim = state_dim
 		self.n_actions = n_actions
-		self.state_buf = np.zeros((self.max_size, input_shape))
-		self.next_state_buf = np.zeros((self.max_size, input_shape))
+		self.state_buf = np.zeros((self.max_size, state_dim))
+		self.next_state_buf = np.zeros((self.max_size, state_dim))
 		self.action_buf = np.zeros((self.max_size, n_actions))
 		self.reward_buf = np.zeros((self.max_size, 1))
 		self.terminal_buf = np.zeros((self.max_size, 1), dtype=np.float32)
@@ -157,7 +157,7 @@ class Critic(Base):
 
 	def forward(self, x, actions):
 		x = F.relu(self.bn1(self.fc1(x)))
-		x = F.relu(self.bn2(self.fc2(x)))
+		x = self.bn2(self.fc2(x))
 
 		# TODO - strange double RELU here
 		a = F.relu(self.action_projection(actions))
@@ -169,17 +169,17 @@ class Critic(Base):
 
 
 class Agent(object):
-	def __init__(self, alpha, beta, input_shape, tau, env, gamma=0.99,
-			     n_actions=2, replay_size=int(10e6), l1=400, l2=300, batch_size=64, action_bound=1.):
+	def __init__(self, alpha, beta, state_dim, tau, env, gamma=0.99,
+			     n_actions=2, replay_size=int(1e6), fc1_dim=400, fc2_dim=300, batch_size=64, action_bound=1.):
 		self.gamma = gamma
 		self.tau = tau
-		self.memory = ReplayBuffer(replay_size, input_shape, n_actions)
+		self.memory = ReplayBuffer(replay_size, state_dim, n_actions)
 		self.batch_size = batch_size
 
-		self.actor = Actor("Actor", input_shape, l1, l2, action_bound, alpha, n_actions)
-		self.target_actor = Actor("TargetActor", input_shape, l1, l2, action_bound, alpha, n_actions)
-		self.critic = Critic("Critic", input_shape, l1, l2, action_bound, beta, n_actions)
-		self.target_critic = Critic("TargetCritic", input_shape, l1, l2, action_bound, beta, n_actions)
+		self.actor = Actor("Actor", state_dim, fc1_dim, fc2_dim, action_bound, alpha, n_actions)
+		self.target_actor = Actor("TargetActor", state_dim, fc1_dim, fc2_dim, action_bound, alpha, n_actions)
+		self.critic = Critic("Critic", state_dim, fc1_dim, fc2_dim, action_bound, beta, n_actions)
+		self.target_critic = Critic("TargetCritic", state_dim, fc1_dim, fc2_dim, action_bound, beta, n_actions)
 
 		self.noise = OrnsteinUhlenbeck(mu=np.zeros(n_actions))
 

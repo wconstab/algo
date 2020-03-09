@@ -4,8 +4,8 @@ import numpy as np
 
 env = gym.make('LunarLanderContinuous-v2')
 
-agent = Agent(alpha=0.000025, beta=0.00025, input_shape=8, tau=0.001, env=env,
-	          batch_size=64, l1=400, l2=300, n_actions=2)
+agent = Agent(alpha=0.000025, beta=0.00025, state_dim=8, tau=0.001, env=env,
+	          batch_size=64, fc1_dim=400, fc2_dim=300, n_actions=2)
 
 np.random.seed(0)
 
