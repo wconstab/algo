@@ -78,7 +78,7 @@ class ReplayBuffer(object):
 
 
 class Base(nn.Module):
-	def __init__(self, name, n_actions, input_dims, fc1_shape, fc2_shape,
+	def __init__(self, name, input_dims, fc1_shape, fc2_shape,
 			     checkpoint_dir='tmp/ddpg', bn_track_running_stats=False):
 		super(Base, self).__init__()
 		self.name = name
@@ -110,8 +110,8 @@ class Base(nn.Module):
 
 
 class Actor(Base):
-	def __init__(self, name, n_actions, input_dims, fc1_shape, fc2_shape, action_bound, alpha):
-		super(Actor, self).__init__(name, n_actions, input_dims, fc1_shape, fc2_shape)
+	def __init__(self, name,  input_dims, fc1_shape, fc2_shape, action_bound, alpha, n_actions):
+		super(Actor, self).__init__(name, input_dims, fc1_shape, fc2_shape)
 		self.n_actions = n_actions
 		self.action_bound = action_bound
 
@@ -132,7 +132,7 @@ class Actor(Base):
 
 
 class Critic(Base):
-	def __init__(self, name, n_actions, input_dims, fc1_shape, fc2_shape, action_bound, beta):
+	def __init__(self, name, input_dims, fc1_shape, fc2_shape, action_bound, beta, n_actions):
 		super(Critic, self).__init__(name, n_actions, input_dims, fc1_shape, fc2_shape)
 		self.n_actions = n_actions
 		self.action_bound = action_bound
@@ -162,22 +162,94 @@ class Critic(Base):
 		return q
 
 
+class Agent(object):
+	def __init__(self, alpha, beta, input_shape, tau, env, gamma=0.99,
+			     n_actions=2, replay_size=10e6, l1=400, l2=300, batch_size=64):
+		self.gamma = gamma
+		self.tau = tau
+		self.memory = ReplayBuffer(max_size, input_shape, n_actions)
+		self.batch_size = batch_size
+
+		self.actor = Actor("Actor", input_shape, l1, l2, action_bound, alpha, n_actions)
+		self.target_actor = Actor("TargetActor", input_shape, l1, l2, action_bound, alpha, n_actions)
+		self.critic = Critic("Critic", input_shape, l1, l2, action_bound, beta, n_actions)
+		self.target_critic = Critic("TargetCritic", input_shape, l1, l2, action_bound, beta, n_actions)
+
+		self.noise = OrnsteinUhlenbeck(mu=np.zeros(n_actions))
+
+		self.update_network_parameters(tau=1)
 
 
+	def choose_action(self, observation):
+		self.actor.eval()
+		observation = T.tensor(obsersvation, dtype=T.float).to(self.actor.device)
+		mu = self.actor(observation).to(self.actor.device)
+		mu_prime = mu + T.tensor(self.noise(), dtype=T.float).to(self.actor.device)
+		self.actor.train()
+		return mu_prime.cpu().detatch.numpy()
 
+	def remember(self, state, action, reward, new_state, done):
+		self.memory.store_transition(state, action, reward, new_state, done)
 
+	def learn(self):
+		if self.memory.mem_cntr < self.batch_size:
+			return
+		s_a_r_n_d = self.memory.sample_buffer(self.batch_size)
+		state, action, reward, new_state, done = \
+			[T.tensor(x, dtype=T.float).to(self.critic.device) for x in s_a_r_n_d]
 
+		self.target_actor.eval()
+		self.target_critic.eval()
+		self.critic.eval()
 
+		target_actions = self.target_actor.forward(new_state)
+		critic_value_ = self.target_critic.forward(new_state, target_actions)
+		critic_value = self.critic.forward(state, action)
 
+		target = []
+		for j in range(self.batch_size):
+			target.append(reward[j] + self.gamma * critic_value_[j] * done[j])
+		target = T.tensor(target).to(self.critic.device)
+		target = target.view(self.batch_size, 1)
 
+		self.critic.train()
+		self.critic.optimizer.zero_grad()
+		critic_loss = F.mse_loss(target, critic_value)
+		critic_loss.backward()
+		self.critic.optimizer.step()
 
+		self.critic.eval()
+		self.actor.optimizer.zero_grad()
+		mu = self.actor.forward(state)
+		self.actor.train()
+		actor_loss = -self.critic.forward(state, mu)
+		actor_loss = T.mean(actor_loss)
+		actor_loss.backward()
+		self.actor.optimizer.step()
 
+		self.update_network_parameters()
 
+	def update_network_parameters(self, tau=None):
+		if tau is None:
+			tau = self.tau
 
+		def update_(network, target_network):
+			state_dict = dict(network.named_parameters())
+			target_state_dict = dict(target_network.named_parameters())
+			for name in state_dict:
+				state_dict[name] = tau * state_dict[name].clone() + \
+									  (1 - tau) * target_state_dict[name].clone()
+			target_network.load_state_dict(state_dict)
 
+		update_(actor, target_actor)
+		update_(critic, target_critic)
 
+	def save_models(self):
+		for model in (self.actor, self.critic, self.target_actor, self.target_critic):
+			model.save_checkpoint()
 
-
-
+	def load_models(self):
+		for model in (self.actor, self.critic, self.target_actor, self.target_critic):
+			model.load_checkpoint()
 
 
