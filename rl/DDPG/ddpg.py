@@ -210,23 +210,36 @@ class Agent(object):
 		self.target_critic.eval()
 		self.critic.eval()
 
+		"""
+			Feeding new_state through target actor, critic to compute
+
+			yi = ri + gamma * Q'(next_state, mu'(next_state))
+		"""
 		target_actions = self.target_actor.forward(new_state)
-		critic_value_ = self.target_critic.forward(new_state, target_actions)
-		critic_value = self.critic.forward(state, action)
-
+		target_critic_value = self.target_critic.forward(new_state, target_actions)
 		target = []
-
 		for j in range(self.batch_size):
-			target.append(reward[j] + self.gamma * critic_value_[j] * done[j])
+			target.append(reward[j] + self.gamma * target_critic_value[j] * done[j])
 		target = T.tensor(target).to(self.critic.device)
 		target = target.view(self.batch_size, 1)
 
+		"""
+			Minimize mean squared error loss for critic
+		"""
+		critic_value = self.critic.forward(state, action)
 		self.critic.train()
 		self.critic.optimizer.zero_grad()
 		critic_loss = F.mse_loss(target, critic_value)
 		critic_loss.backward()
 		self.critic.optimizer.step()
 
+		"""
+			Train actor by maximizing expected Q(s, a) == Q(s, MU(s)).
+				by minimizing -1 * Q(s, MU(s))
+
+			Leverage PyTorch autodiff here, it backpropagates grad loss through Q
+				all the way to the parameters of MU.
+		"""
 		self.critic.eval()
 		self.actor.optimizer.zero_grad()
 		mu = self.actor.forward(state)
