@@ -186,14 +186,14 @@ class Agent(object):
 		self.update_network_parameters(tau=1)
 
 
-	def choose_action(self, observation):
+	def choose_action(self, observation, noise=True):
 		self.actor.eval()
 		observation = T.tensor(observation, dtype=T.float).to(self.actor.device)
-		mu = self.actor(observation).to(self.actor.device)
-		mu_prime = mu + T.tensor(self.noise(), dtype=T.float).to(self.actor.device)
+		mu = self.actor.forward(observation).to(self.actor.device)
+		if noise:
+			mu = mu + T.tensor(self.noise(), dtype=T.float).to(self.actor.device)
 		self.actor.train()
-		# return mu_prime.cpu().detatch().numpy()
-		return mu_prime.detach().numpy()
+		return mu.detach().numpy()
 
 	def remember(self, state, action, reward, new_state, done):
 		self.memory.store(state, action, reward, new_state, done)
