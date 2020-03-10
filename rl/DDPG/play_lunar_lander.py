@@ -1,10 +1,16 @@
 import gym
 from ddpg import Agent
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument("--checkpoint_dir")
+args = parser.parse_args()
 
 env = gym.make("LunarLanderContinuous-v2")
 agent = Agent(alpha=0.000025, beta=0.00025, state_dim=8, tau=0.001, env=env,
-	          batch_size=64, fc1_dim=400, fc2_dim=300, n_actions=2)
-agent.load_models()
+	          batch_size=64, fc1_dim=400, fc2_dim=300, n_actions=2, checkpoint_dir=args.checkpoint_dir)
+if args.checkpoint_dir:
+	agent.load_models()
 
 observation = env.reset()
 for _ in range(10000):

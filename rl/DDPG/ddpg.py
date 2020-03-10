@@ -88,7 +88,8 @@ class Base(nn.Module):
 		self.name = name
 		self.fc1_shape = fc1_shape
 		self.fc2_shape = fc2_shape
-		self.checkpoint_file = os.path.join(checkpoint_dir, "ddpg_" + name)
+		if checkpoint_dir is not None:
+			self.checkpoint_file = os.path.join(checkpoint_dir, "ddpg_" + name)
 		self.device = T.device('cpu')
 
 		# TODO: track_running_stats = False?  uses batch stats rather than running est during eval.
@@ -116,8 +117,8 @@ class Base(nn.Module):
 
 
 class Actor(Base):
-	def __init__(self, name,  input_dims, fc1_shape, fc2_shape, action_bound, alpha, n_actions):
-		super(Actor, self).__init__(name, input_dims, fc1_shape, fc2_shape)
+	def __init__(self, name,  input_dims, fc1_shape, fc2_shape, action_bound, alpha, n_actions, checkpoint_dir):
+		super(Actor, self).__init__(name, input_dims, fc1_shape, fc2_shape, checkpoint_dir)
 		self.n_actions = n_actions
 		self.action_bound = action_bound
 
@@ -138,8 +139,8 @@ class Actor(Base):
 
 
 class Critic(Base):
-	def __init__(self, name, input_dims, fc1_shape, fc2_shape, action_bound, beta, n_actions):
-		super(Critic, self).__init__(name, input_dims, fc1_shape, fc2_shape)
+	def __init__(self, name, input_dims, fc1_shape, fc2_shape, action_bound, beta, n_actions, checkpoint_dir):
+		super(Critic, self).__init__(name, input_dims, fc1_shape, fc2_shape, checkpoint_dir)
 		self.n_actions = n_actions
 		self.action_bound = action_bound
 
@@ -170,16 +171,17 @@ class Critic(Base):
 
 class Agent(object):
 	def __init__(self, alpha, beta, state_dim, tau, env, gamma=0.99,
-			     n_actions=2, replay_size=int(1e6), fc1_dim=400, fc2_dim=300, batch_size=64, action_bound=1.):
+			     n_actions=2, replay_size=int(1e6), fc1_dim=400, fc2_dim=300, batch_size=64, 
+			     action_bound=1., checkpoint_dir='checkpoints'):
 		self.gamma = gamma
 		self.tau = tau
 		self.memory = ReplayBuffer(replay_size, state_dim, n_actions)
 		self.batch_size = batch_size
 
-		self.actor = Actor("Actor", state_dim, fc1_dim, fc2_dim, action_bound, alpha, n_actions)
-		self.target_actor = Actor("TargetActor", state_dim, fc1_dim, fc2_dim, action_bound, alpha, n_actions)
-		self.critic = Critic("Critic", state_dim, fc1_dim, fc2_dim, action_bound, beta, n_actions)
-		self.target_critic = Critic("TargetCritic", state_dim, fc1_dim, fc2_dim, action_bound, beta, n_actions)
+		self.actor = Actor("Actor", state_dim, fc1_dim, fc2_dim, action_bound, alpha, n_actions, checkpoint_dir)
+		self.target_actor = Actor("TargetActor", state_dim, fc1_dim, fc2_dim, action_bound, alpha, n_actions, checkpoint_dir)
+		self.critic = Critic("Critic", state_dim, fc1_dim, fc2_dim, action_bound, beta, n_actions, checkpoint_dir)
+		self.target_critic = Critic("TargetCritic", state_dim, fc1_dim, fc2_dim, action_bound, beta, n_actions, checkpoint_dir)
 
 		self.noise = OrnsteinUhlenbeck(mu=np.zeros(n_actions))
 
