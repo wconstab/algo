@@ -145,7 +145,9 @@ class Critic(Base):
 		self.action_bound = action_bound
 
 		self.action_projection = nn.Linear(n_actions, fc2_shape)
-		# TODO no initialization for the action projection? should it have bias?
+		f2 = f2 = 1 / np.sqrt(self.action_projection.weight.data.size()[0])
+		nn.init.uniform_(self.action_projection.weight.data, -f2, f2)
+		nn.init.uniform_(self.action_projection.bias.data, -f2, f2)
 
 		f3 = 0.003
 		self.q = nn.Linear(fc2_shape, 1)
@@ -159,11 +161,8 @@ class Critic(Base):
 	def forward(self, x, actions):
 		x = F.relu(self.bn1(self.fc1(x)))
 		x = self.bn2(self.fc2(x))
-
-		# TODO - strange double RELU here
-		a = F.relu(self.action_projection(actions))
+		a = self.action_projection(actions)
 		x = F.relu(T.add(x, a))
-
 		q = self.q(x)
 
 		return q
