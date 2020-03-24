@@ -4,6 +4,7 @@ aoc.egg_info
 *.swp
 *.swo
 *.pyc
+*.ipynb_checkpoints
 
 t10k-images*
 t10k-labels*
